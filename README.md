@@ -1,5 +1,22 @@
 # flood.c
 Insanely fast stress-test L4, runs on TPACKETV3; supports many methods; control panel in HTML.
+
+# compile
+Successful compilation is only possible on linux, and only if you have the library, libwebsockets (needed for the panel) installed.
+
+You can install the library like this,
+```
+sudo apt install libwebsockets-dev
+sudo pacman -S libwebsockets
+```
+then compile flood.c like this,
+```
+git clone --depth=1 https://github.com/Lomasterrrr/flood.c.git
+cd flood.c
+./configure
+make -j
+```
+
 # config
 A config contains two elements (1) instruction (2) comment.
 
