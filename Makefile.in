@@ -1,0 +1,49 @@
+CC=@CC@
+CFLAGS=@CFLAGS@
+
+TARGETS = FLOOD SERVER RESEND
+BUILD_DIR = build
+SCRIPT_NAME = run.sh
+
+SRC := $(shell find src -type f -name '*.c' ! -name 'server.c' ! -name 'resend.c')
+OBJ := $(SRC:src/%.c=$(BUILD_DIR)/%.o)
+
+RESEND_SRC = src/server/resend.c
+RESEND_OBJ = $(BUILD_DIR)/server/resend.o
+SERVER_SRC = src/server/server.c
+SERVER_OBJ = $(BUILD_DIR)/server/server.o
+
+all: $(TARGETS) $(SCRIPT_NAME)
+
+FLOOD: $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) -o $(BUILD_DIR)/FLOOD
+
+RESEND: $(RESEND_OBJ)
+	$(CC) $(CFLAGS) $(RESEND_OBJ) -lwebsockets -o $(BUILD_DIR)/RESEND
+
+SERVER: $(SERVER_OBJ)
+	$(CC) $(CFLAGS) $(SERVER_OBJ) -o $(BUILD_DIR)/SERVER
+
+$(RESEND_OBJ): $(RESEND_SRC)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -lwebsockets -o $@
+
+$(SERVER_OBJ): $(SERVER_SRC)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: src/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(SCRIPT_NAME): $(TARGETS)
+	echo '#!/bin/bash' > $(SCRIPT_NAME)
+	echo './build/SERVER build/FLOOD &' >> $(SCRIPT_NAME)
+	echo './build/RESEND' >> $(SCRIPT_NAME)
+	echo 'wait' >> $(SCRIPT_NAME)
+	chmod +x $(SCRIPT_NAME)
+
+clean:
+	rm -rf config.status config.log autom4te.cache Makefile config.h
+	rm -rf $(BUILD_DIR) $(SCRIPT_NAME)
+

