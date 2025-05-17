@@ -61,7 +61,7 @@ ws://142.33.33.33:8080
 
 <h1 align="center">Speed test</h1>
 
-Using config/defaultcfg,
+Using config/defaultcfg (on my weak host),
 
 ```
 460k packet per second
