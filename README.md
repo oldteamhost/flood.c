@@ -78,7 +78,7 @@ And blitzping shows
 300-350k packet per second
 ```
 
-And hping,
+And hping3,
 ```
 30k packet per second
 ```
