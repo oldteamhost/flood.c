@@ -59,6 +59,31 @@ ws://142.33.33.33:8080
 ...,
 ```
 
+<h1 align="center">Speed test</h1>
+
+Using config/defaultcfg,
+
+```
+460k packet per second
+```
+
+While t50, shows on the same host,
+
+```
+130k packet per second
+```
+
+And blitzping shows
+```
+300-350k packet per second
+```
+
+And hping,
+```
+30k packet per second
+```
+
+
 <h1 align="center">Master usage</h1>
 
 You do not have to use `panel.html` to use it. You can use the `FLOOD` program in the same folder.
