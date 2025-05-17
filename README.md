@@ -83,6 +83,7 @@ And hping3,
 30k packet per second
 ```
 
+This speed of `flood.c` is achieved by TPACKETV3 sockets, a ring buffer, and a method of generating random numbers (there are several).
 
 <h1 align="center">Master usage</h1>
 
