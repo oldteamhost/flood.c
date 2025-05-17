@@ -1,7 +1,7 @@
 <div align="center">
 <h1 align="center">flood.c</h1>
  <p align="center">
-Insanely fast stress-test L4, runs on TPACKETV3; supports many methods; control panel in HTML.
+Botnet; insanely fast stress-test L4, runs on TPACKETV3; control panel in HTML; supports many methods.
 </p>
  
 <img src="photo.png" alt="photo" style="width: 900px;">
